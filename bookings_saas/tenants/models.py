@@ -49,7 +49,7 @@ class Tenant(models.Model):
 
     # ── Slug automático y único ───────────────────────────
     def _unique_slug(self):
-        from python_slugify import slugify as py_slugify
+        from slugify import slugify as py_slugify
         base = py_slugify(self.name, max_length=200)
         slug, n = base, 1
         while Tenant.objects.filter(slug=slug).exclude(pk=self.pk).exists():
