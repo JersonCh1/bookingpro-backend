@@ -2,10 +2,14 @@
 tenants/serializers.py
 """
 import re
+import logging
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.db import transaction
 from rest_framework import serializers
 from .models import Tenant, TenantUser
+
+logger = logging.getLogger('bookings_saas')
 
 
 # ── Tenant ────────────────────────────────────────────────
@@ -104,40 +108,46 @@ class RegisterSerializer(serializers.Serializer):
             n += 1
         return username
 
+    @transaction.atomic
     def create(self, validated_data):
-        # 1. Crear Tenant
-        tenant = Tenant.objects.create(
-            name=validated_data['name'],
-            business_type=validated_data['business_type'],
-            phone=validated_data['phone'],
-            email=validated_data['email'],
-            city=validated_data.get('city', 'Arequipa'),
-        )
-
-        # 2. Horario por defecto: Lun–Vie 09:00–18:00
-        #    (importación diferida para evitar circular imports)
-        from bookings_saas.scheduling.models import Schedule
-        for day in range(5):  # 0=Lun … 4=Vie
-            Schedule.objects.create(
-                tenant=tenant,
-                day_of_week=day,
-                start_time='09:00',
-                end_time='18:00',
+        try:
+            # 1. Crear Tenant
+            tenant = Tenant.objects.create(
+                name=validated_data['name'],
+                business_type=validated_data['business_type'],
+                phone=validated_data['phone'],
+                email=validated_data['email'],
+                city=validated_data.get('city', 'Arequipa'),
             )
 
-        # 3. Crear User Django
-        user = User.objects.create_user(
-            username=self._make_username(validated_data['email']),
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=validated_data['first_name'].strip(),
-            last_name=validated_data['last_name'].strip(),
-        )
+            # 2. Horario por defecto: Lun–Vie 09:00–18:00
+            #    (importación diferida para evitar circular imports)
+            from bookings_saas.scheduling.models import Schedule
+            for day in range(5):  # 0=Lun … 4=Vie
+                Schedule.objects.create(
+                    tenant=tenant,
+                    day_of_week=day,
+                    start_time='09:00',
+                    end_time='18:00',
+                )
 
-        # 4. Vincular User ↔ Tenant
-        TenantUser.objects.create(user=user, tenant=tenant, role='owner')
+            # 3. Crear User Django
+            user = User.objects.create_user(
+                username=self._make_username(validated_data['email']),
+                email=validated_data['email'],
+                password=validated_data['password'],
+                first_name=validated_data['first_name'].strip(),
+                last_name=validated_data['last_name'].strip(),
+            )
 
-        return user
+            # 4. Vincular User ↔ Tenant
+            TenantUser.objects.create(user=user, tenant=tenant, role='owner')
+
+            return user
+
+        except Exception as e:
+            logger.error('Register error: %s', e, exc_info=True)
+            raise
 
 
 # ── Auth: Login ───────────────────────────────────────────
