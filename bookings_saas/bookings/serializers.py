@@ -148,7 +148,7 @@ class BookingStatusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Booking
-        fields = ['status', 'notes']
+        fields = ['status', 'notes', 'staff']
 
     def validate_status(self, value):
         if value not in self.VALID_STATUSES:
