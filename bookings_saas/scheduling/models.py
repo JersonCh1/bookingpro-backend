@@ -45,6 +45,7 @@ class BlockedSlot(models.Model):
     class Meta:
         verbose_name        = 'Slot bloqueado'
         verbose_name_plural = 'Slots bloqueados'
+        ordering            = ['-date', '-start_time']
 
     def __str__(self):
         return f'{self.date} {self.start_time}–{self.end_time} | {self.tenant.name}'

@@ -29,6 +29,7 @@ class Staff(models.Model):
     class Meta:
         verbose_name        = 'Empleado'
         verbose_name_plural = 'Empleados'
+        ordering            = ['-id']
 
     def __str__(self):
         return f'{self.name} — {self.tenant.name}'
