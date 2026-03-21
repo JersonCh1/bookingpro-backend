@@ -5,6 +5,7 @@ class Service(models.Model):
     tenant      = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='services')
     name        = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    image_url   = models.URLField(blank=True, default='')
     duration    = models.IntegerField(help_text='Duración en minutos')
     price       = models.DecimalField(max_digits=8, decimal_places=2)
     is_active   = models.BooleanField(default=True)

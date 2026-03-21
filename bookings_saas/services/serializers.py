@@ -6,7 +6,7 @@ from .models import Service, Staff
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Service
-        fields = ['id', 'name', 'description', 'duration', 'price', 'is_active', 'created_at']
+        fields = ['id', 'name', 'description', 'image_url', 'duration', 'price', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 

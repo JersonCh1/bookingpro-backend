@@ -19,7 +19,7 @@ class TenantSerializer(serializers.ModelSerializer):
         model  = Tenant
         fields = [
             'id', 'name', 'slug', 'business_type',
-            'logo', 'phone', 'email', 'address', 'city',
+            'logo', 'phone', 'email', 'address', 'city', 'description',
             'is_active', 'plan', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'slug', 'plan', 'is_active', 'created_at', 'updated_at']
@@ -31,8 +31,8 @@ class TenantSerializer(serializers.ModelSerializer):
 
     def validate_phone(self, value):
         cleaned = re.sub(r'[\s\-\(\)]', '', value)
-        if len(cleaned) < 7:
-            raise serializers.ValidationError('Ingresa un teléfono válido.')
+        if not re.match(r'^(\+51)?9\d{8}$', cleaned):
+            raise serializers.ValidationError('Ingresa un número de WhatsApp peruano válido (9 dígitos).')
         return value
 
 
@@ -42,7 +42,7 @@ class TenantPublicSerializer(serializers.ModelSerializer):
         model  = Tenant
         fields = [
             'id', 'name', 'slug', 'business_type',
-            'logo', 'phone', 'address', 'city',
+            'logo', 'phone', 'address', 'city', 'description',
         ]
 
 
@@ -58,6 +58,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email',
             'first_name', 'last_name',
+            'is_staff',
             'role', 'tenant_id', 'tenant_slug',
         ]
 

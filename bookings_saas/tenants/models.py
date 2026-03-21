@@ -26,11 +26,12 @@ class Tenant(models.Model):
     # Ejemplos: "salon", "barberia", "spa", "consultorio", "gym", "estudio"
 
     # ── Contacto ─────────────────────────────────────────
-    logo    = models.ImageField(upload_to='logos/', null=True, blank=True)
-    phone   = models.CharField(max_length=20, verbose_name='Teléfono')
-    email   = models.EmailField(verbose_name='Email de contacto')
-    address = models.TextField(blank=True, verbose_name='Dirección')
-    city    = models.CharField(max_length=100, default='Arequipa', verbose_name='Ciudad')
+    logo        = models.ImageField(upload_to='logos/', null=True, blank=True)
+    phone       = models.CharField(max_length=20, verbose_name='Teléfono')
+    email       = models.EmailField(verbose_name='Email de contacto')
+    address     = models.TextField(blank=True, verbose_name='Dirección')
+    city        = models.CharField(max_length=100, default='Arequipa', verbose_name='Ciudad')
+    description = models.TextField(blank=True, verbose_name='Descripción del negocio')
 
     # ── Estado y plan ────────────────────────────────────
     is_active = models.BooleanField(default=True, verbose_name='Activo')
