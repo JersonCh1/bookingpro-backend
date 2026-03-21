@@ -1,8 +1,5 @@
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
 
-[phases.build]
-cmds = ["pip install -r requirements.txt", "python manage.py collectstatic --noinput --clear"]
-
 [start]
-cmd = "gunicorn bookings_saas.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+cmd = "python manage.py collectstatic --noinput --clear && gunicorn bookings_saas.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
