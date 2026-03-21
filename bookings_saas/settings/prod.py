@@ -43,9 +43,10 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Opcional (recomendado para Vercel dinámico)
+# Dominios permitidos explícitos + Vercel dinámico
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"https://.*\.vercel\.app",
+    r"https://(www\.)?agendaya\.online",
 ]
 
 # ── Email ─────────────────────────────────────────────────
