@@ -8,7 +8,7 @@ Rutas montadas en /api/admin/
 """
 import logging
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import BasePermission
 from rest_framework import status
 
 from .models import Tenant
@@ -18,11 +18,21 @@ from bookings_saas.utils.responses import success, error
 
 logger = logging.getLogger('bookings_saas')
 
+OWNER_EMAIL = 'echurapacci'   # fallback por email mientras is_staff se configura en prod
+
+
+class IsSuperAdmin(BasePermission):
+    """Acceso si is_staff=True o el email contiene la firma del dueño."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_staff or OWNER_EMAIL in (request.user.email or '')
+
 
 # ── Stats globales ────────────────────────────────────────
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsSuperAdmin])
 def admin_stats(request):
     """
     GET /api/admin/stats/
@@ -44,7 +54,7 @@ def admin_stats(request):
 # ── Lista de negocios ─────────────────────────────────────
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsSuperAdmin])
 def admin_tenants(request):
     """
     GET /api/admin/tenants/?search=&city=&status=active|blocked
@@ -97,7 +107,7 @@ def admin_tenants(request):
 # ── Toggle activo/bloqueado ───────────────────────────────
 
 @api_view(['PATCH'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsSuperAdmin])
 def admin_tenant_toggle(request, tenant_id):
     """
     PATCH /api/admin/tenants/{id}/toggle/
@@ -118,7 +128,7 @@ def admin_tenant_toggle(request, tenant_id):
 # ── Eliminar negocio ──────────────────────────────────────
 
 @api_view(['DELETE'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsSuperAdmin])
 def admin_tenant_delete(request, tenant_id):
     """
     DELETE /api/admin/tenants/{id}/
@@ -139,7 +149,7 @@ def admin_tenant_delete(request, tenant_id):
 # ── Reservas globales ─────────────────────────────────────
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsSuperAdmin])
 def admin_bookings(request):
     """
     GET /api/admin/bookings/?page=1
