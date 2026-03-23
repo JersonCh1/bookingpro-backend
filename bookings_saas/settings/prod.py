@@ -28,7 +28,7 @@ X_FRAME_OPTIONS = 'DENY'
 # ── Base de datos (Railway provee DATABASE_URL automático) ─
 DATABASES = {
     'default': dj_database_url.parse(
-        os.environ['DATABASE_URL'],
+        os.environ.get('DATABASE_URL', 'sqlite:///tmp/build-placeholder.db'),
         conn_max_age=600,
         ssl_require=True,
     )
