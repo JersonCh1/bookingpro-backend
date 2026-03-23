@@ -53,8 +53,9 @@ def _auth_payload(user) -> dict:
     tenant = get_tenant(user)
     return {
         **_build_tokens(user),
-        'user':   UserSerializer(user).data,
-        'tenant': TenantSerializer(tenant).data if tenant else None,
+        'user':     UserSerializer(user).data,
+        'tenant':   TenantSerializer(tenant).data if tenant else None,
+        'is_staff': user.is_staff,
     }
 
 
