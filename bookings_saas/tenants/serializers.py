@@ -169,10 +169,13 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Credenciales incorrectas.')
         if not user.is_active:
             raise serializers.ValidationError('Cuenta desactivada. Contacta soporte.')
-        if not hasattr(user, 'tenant_user'):
-            raise serializers.ValidationError('Este usuario no tiene un negocio asociado.')
-        if not user.tenant_user.tenant.is_active:
-            raise serializers.ValidationError('El negocio está desactivado. Contacta soporte.')
+
+        # Los superusuarios (is_staff) pueden iniciar sesión sin tener tenant
+        if not user.is_staff:
+            if not hasattr(user, 'tenant_user'):
+                raise serializers.ValidationError('Este usuario no tiene un negocio asociado.')
+            if not user.tenant_user.tenant.is_active:
+                raise serializers.ValidationError('El negocio está desactivado. Contacta soporte.')
 
         data['user'] = user
         return data
