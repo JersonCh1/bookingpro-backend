@@ -3,7 +3,7 @@ tenants/admin.py
 """
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Tenant, TenantUser
+from .models import Tenant, TenantUser, Payment, TenantNote, SystemConfig
 
 
 class TenantUserInline(admin.TabularInline):
@@ -57,6 +57,33 @@ class TenantAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:9999px;font-size:11px">Inactivo</span>'
         )
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display  = ['tenant', 'amount', 'method', 'paid_at', 'period_month', 'period_year', 'created_by']
+    list_filter   = ['method', 'period_year']
+    search_fields = ['tenant__name', 'reference']
+    raw_id_fields = ['tenant', 'created_by']
+
+
+@admin.register(TenantNote)
+class TenantNoteAdmin(admin.ModelAdmin):
+    list_display  = ['tenant', 'created_by', 'created_at', 'content_preview']
+    raw_id_fields = ['tenant', 'created_by']
+
+    @admin.display(description='Contenido')
+    def content_preview(self, obj):
+        return obj.content[:80]
+
+
+@admin.register(SystemConfig)
+class SystemConfigAdmin(admin.ModelAdmin):
+    list_display = ['key', 'value_preview', 'updated_at']
+
+    @admin.display(description='Valor')
+    def value_preview(self, obj):
+        return obj.value[:60]
 
 
 @admin.register(TenantUser)

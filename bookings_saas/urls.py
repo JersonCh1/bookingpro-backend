@@ -21,10 +21,18 @@ urlpatterns = [
     path('api/bookings/',   include('bookings_saas.bookings.urls')),
 
     # ── Super Admin ───────────────────────────────────────
-    path('api/admin/stats/',                     admin_views.admin_stats,          name='admin-stats'),
-    path('api/admin/tenants/',                   admin_views.admin_tenants,        name='admin-tenants'),
-    path('api/admin/tenants/<uuid:tenant_id>/toggle/', admin_views.admin_tenant_toggle, name='admin-tenant-toggle'),
-    path('api/admin/tenants/<uuid:tenant_id>/',  admin_views.admin_tenant_delete,  name='admin-tenant-delete'),
-    path('api/admin/bookings/',                  admin_views.admin_bookings,       name='admin-bookings'),
+    path('api/admin/stats/',                                    admin_views.admin_stats,             name='admin-stats'),
+    path('api/admin/tenants/',                                  admin_views.admin_tenants,           name='admin-tenants'),
+    path('api/admin/tenants/<uuid:tenant_id>/toggle/',          admin_views.admin_tenant_toggle,     name='admin-tenant-toggle'),
+    path('api/admin/tenants/<uuid:tenant_id>/extend/',          admin_views.admin_tenant_extend,     name='admin-tenant-extend'),
+    path('api/admin/tenants/<uuid:tenant_id>/detail/',          admin_views.admin_tenant_detail,     name='admin-tenant-detail'),
+    path('api/admin/tenants/<uuid:tenant_id>/notes/',           admin_views.admin_tenant_add_note,   name='admin-tenant-notes'),
+    path('api/admin/tenants/<uuid:tenant_id>/',                 admin_views.admin_tenant_delete,     name='admin-tenant-delete'),
+    path('api/admin/payments/summary/',                         admin_views.admin_payments_summary,  name='admin-payments-summary'),
+    path('api/admin/payments/<int:payment_id>/',                admin_views.admin_payment_delete,    name='admin-payment-delete'),
+    path('api/admin/payments/',                                 admin_views.admin_payments,          name='admin-payments'),
+    path('api/admin/notes/<int:note_id>/',                      admin_views.admin_note_delete,       name='admin-note-delete'),
+    path('api/admin/bookings/',                                 admin_views.admin_bookings,          name='admin-bookings'),
+    path('api/admin/config/',                                   admin_views.admin_config,            name='admin-config'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
