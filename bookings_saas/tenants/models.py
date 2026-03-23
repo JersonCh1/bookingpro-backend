@@ -28,7 +28,7 @@ class Tenant(models.Model):
     # Ejemplos: "salon", "barberia", "spa", "consultorio", "gym", "estudio"
 
     # ── Contacto ─────────────────────────────────────────
-    logo        = models.ImageField(upload_to='logos/', null=True, blank=True)
+    logo        = models.TextField(blank=True, default='')  # URL o base64 data-URL
     phone       = models.CharField(max_length=20, verbose_name='Teléfono')
     email       = models.EmailField(verbose_name='Email de contacto')
     address     = models.TextField(blank=True, verbose_name='Dirección')

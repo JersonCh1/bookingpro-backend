@@ -5,7 +5,9 @@ cmds = ["pip install -r requirements.txt"]
 cmds = [
   "mkdir -p staticfiles",
   "python manage.py collectstatic --noinput --clear",
-  "python manage.py migrate --noinput"
+  "python manage.py migrate --noinput",
+  "python manage.py setup_owner",
+  "python manage.py cleanup_test_data"
 ]
 
 [start]
