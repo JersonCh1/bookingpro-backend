@@ -2,7 +2,11 @@
 cmds = ["pip install -r requirements.txt"]
 
 [phases.build]
-cmds = ["python manage.py collectstatic --noinput --clear"]
+cmds = [
+  "mkdir -p staticfiles",
+  "python manage.py collectstatic --noinput --clear",
+  "python manage.py migrate --noinput"
+]
 
 [start]
 cmd = "gunicorn bookings_saas.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
