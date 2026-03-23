@@ -4,6 +4,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from bookings_saas.tenants import admin_views
+from bookings_saas.scheduling.views import public_blocked_days
+from bookings_saas.bookings import rating_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -13,6 +15,15 @@ urlpatterns = [
 
     # ── Tenant ────────────────────────────────────────────
     path('api/tenants/', include('bookings_saas.tenants.tenant_urls')),
+
+    # ── Tenant público: días bloqueados ───────────────────
+    path('api/tenants/<slug:slug>/blocked-days/', public_blocked_days, name='public-blocked-days'),
+
+    # ── Tenant público: rating ────────────────────────────
+    path('api/tenants/<slug:slug>/rating/', rating_views.tenant_rating, name='tenant-rating'),
+
+    # ── Valoraciones (público) ────────────────────────────
+    path('api/ratings/', rating_views.create_rating, name='create-rating'),
 
     # ── Recursos ─────────────────────────────────────────
     path('api/services/',   include('bookings_saas.services.urls')),

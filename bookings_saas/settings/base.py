@@ -121,6 +121,34 @@ WHATSAPP_PHONE_ID  = os.getenv('WHATSAPP_PHONE_ID',  '')
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+# ── Celery (opcional — sin Celery instalado estas settings no hacen nada) ─────
+CELERY_BROKER_URL        = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND    = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_TIMEZONE          = 'America/Lima'
+CELERY_TASK_TRACK_STARTED = True
+
+try:
+    from celery.schedules import crontab
+    CELERY_BEAT_SCHEDULE = {
+        # Block 4: Recordatorios 24h — cada hora en punto
+        'send-reminders-24h': {
+            'task':     'bookings_saas.bookings.tasks.send_reminder_24h',
+            'schedule': crontab(minute=0),
+        },
+        # Block 5: Solicitudes de valoración — cada 2 horas
+        'send-rating-requests': {
+            'task':     'bookings_saas.bookings.tasks.send_rating_requests',
+            'schedule': crontab(minute=30, hour='*/2'),
+        },
+        # Block 11: Resumen diario — 7:30am Lima
+        'send-daily-summary': {
+            'task':     'bookings_saas.bookings.tasks.send_daily_summary',
+            'schedule': crontab(hour=7, minute=30),
+        },
+    }
+except ImportError:
+    pass  # Celery no instalado — usar `python manage.py run_tasks`
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

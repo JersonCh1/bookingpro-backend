@@ -64,6 +64,10 @@ def _msg_cliente_confirmacion(booking) -> str:
     b   = booking
     biz = b.tenant
     staff_line = f'Con: {b.staff.name}\n' if b.staff else ''
+    from django.conf import settings
+    frontend   = getattr(settings, 'FRONTEND_URL', 'https://agendaya.online')
+    cancel_url = f'{frontend}/cancelar/{b.cancel_token}' if getattr(b, 'cancel_token', '') else ''
+    cancel_line = f'\nPara cancelar: {cancel_url}' if cancel_url else f'\nPara cancelar contactanos al {biz.phone}'
     return (
         f'*Reserva confirmada*\n\n'
         f'Hola {b.customer.name},\n'
@@ -74,8 +78,8 @@ def _msg_cliente_confirmacion(booking) -> str:
         f'Hora: {_fmt_time(b.start_time)}\n'
         f'Precio: S/. {b.service.price}\n\n'
         f'Direccion: {_location(biz)}\n'
-        f'Telefono negocio: {biz.phone}\n\n'
-        f'Para cancelar contactanos al {biz.phone}'
+        f'Telefono negocio: {biz.phone}'
+        f'{cancel_line}'
     )
 
 
@@ -160,3 +164,27 @@ def send_booking_reminder(booking) -> None:
     """
     if booking.customer.phone:
         send_whatsapp(booking.customer.phone, _msg_cliente_recordatorio(booking))
+
+
+def send_booking_reminder_with_token(booking) -> None:
+    """
+    Recordatorio 24h — incluye link de cancelación con cancel_token.
+    """
+    if not booking.customer.phone:
+        return
+    b   = booking
+    biz = b.tenant
+    from django.conf import settings
+    frontend   = getattr(settings, 'FRONTEND_URL', 'https://agendaya.online')
+    cancel_url = f'{frontend}/cancelar/{b.cancel_token}' if getattr(b, 'cancel_token', '') else ''
+    msg = (
+        f'Hola {b.customer.name.split()[0]} 👋\n\n'
+        f'Te recordamos tu cita *mañana*:\n\n'
+        f'📍 {biz.name}\n'
+        f'💈 {b.service.name}\n'
+        f'🕐 {_fmt_time(b.start_time)}\n'
+        f'📍 {_location(biz)}\n'
+    )
+    if cancel_url:
+        msg += f'\n¿No puedes venir? Cancela aquí:\n{cancel_url}'
+    send_whatsapp(b.customer.phone, msg)

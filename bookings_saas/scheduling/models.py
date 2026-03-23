@@ -38,8 +38,9 @@ class BlockedSlot(models.Model):
     tenant     = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='blocked_slots')
     staff      = models.ForeignKey('services.Staff', null=True, blank=True, on_delete=models.CASCADE, related_name='blocked_slots')
     date       = models.DateField()
-    start_time = models.TimeField()
-    end_time   = models.TimeField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_time   = models.TimeField(null=True, blank=True)
+    all_day    = models.BooleanField(default=False)
     reason     = models.CharField(max_length=200, blank=True)
 
     class Meta:

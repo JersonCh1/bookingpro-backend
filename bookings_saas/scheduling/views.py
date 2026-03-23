@@ -174,3 +174,63 @@ def available_days(request):
     days = get_days_with_availability(tenant, service, year, month, staff)
 
     return success({'year': year, 'month': month, 'available_days': days})
+
+
+# ── Días bloqueados (dashboard + público) ─────────────────
+
+@api_view(['GET', 'POST'])
+def blocked_days(request):
+    """
+    GET  /api/scheduling/blocked-days/  → lista días bloqueados del tenant
+    POST /api/scheduling/blocked-days/  → bloquea un día completo
+    Body POST: { date, reason? }
+    """
+    from bookings_saas.tenants.permissions import IsTenantOwner, get_tenant
+    if not request.user.is_authenticated:
+        from rest_framework.exceptions import NotAuthenticated
+        raise NotAuthenticated()
+
+    tenant = get_tenant(request.user)
+
+    if request.method == 'GET':
+        slots = BlockedSlot.objects.filter(tenant=tenant, all_day=True).order_by('date')
+        data = [{'id': s.id, 'date': str(s.date), 'reason': s.reason} for s in slots]
+        return success(data)
+
+    # POST
+    date_str = request.data.get('date')
+    reason   = request.data.get('reason', '')
+    if not date_str:
+        return error('El campo date es requerido.', code='BAD_REQUEST',
+                     status=400)
+    slot, created = BlockedSlot.objects.get_or_create(
+        tenant=tenant, date=date_str, all_day=True,
+        defaults={'reason': reason, 'start_time': None, 'end_time': None},
+    )
+    if not created:
+        slot.delete()
+        return success({'deleted': True, 'date': date_str})
+    return success({'id': slot.id, 'date': date_str, 'reason': reason}, status=201)
+
+
+@api_view(['DELETE'])
+def blocked_day_delete(request, pk):
+    """DELETE /api/scheduling/blocked-days/{id}/"""
+    from bookings_saas.tenants.permissions import get_tenant
+    tenant = get_tenant(request.user)
+    slot   = get_object_or_404(BlockedSlot, pk=pk, tenant=tenant, all_day=True)
+    slot.delete()
+    return success({'deleted': True})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def public_blocked_days(request, slug):
+    """
+    GET /api/tenants/{slug}/blocked-days/
+    Retorna las fechas bloqueadas (all_day=True) del negocio.
+    Usado por la BookingPage para deshabilitar fechas en el calendario.
+    """
+    tenant = get_object_or_404(Tenant, slug=slug, is_active=True)
+    slots  = BlockedSlot.objects.filter(tenant=tenant, all_day=True).values_list('date', flat=True)
+    return success({'blocked_dates': [str(d) for d in slots]})

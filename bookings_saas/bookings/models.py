@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from datetime import datetime, timedelta
 
 from django.db import models
@@ -44,6 +45,13 @@ class Booking(models.Model):
     notes      = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Block 3: token único para cancelar sin login
+    cancel_token     = models.CharField(max_length=8, blank=True, default='', db_index=True)
+    # Block 4: control de recordatorios
+    reminder_sent    = models.BooleanField(default=False)
+    # Block 5: control de solicitud de valoración
+    rating_requested = models.BooleanField(default=False)
+
     class Meta:
         verbose_name        = 'Reserva'
         verbose_name_plural = 'Reservas'
@@ -54,8 +62,16 @@ class Booking(models.Model):
         """
         Auto-calcula end_time = start_time + service.duration.
         Garantiza consistencia aunque end_time no se pase explícitamente.
+        Genera cancel_token único si no tiene.
         """
         update_fields = kwargs.get('update_fields')
+
+        # Generar cancel_token si es nuevo o está vacío
+        if not self.cancel_token:
+            self.cancel_token = secrets.token_hex(4)
+            if update_fields and 'cancel_token' not in update_fields:
+                kwargs['update_fields'] = list(update_fields) + ['cancel_token']
+
         should_recalc = not update_fields or (
             'start_time' in update_fields or 'service' in update_fields
         )
@@ -71,3 +87,21 @@ class Booking(models.Model):
 
     def __str__(self):
         return f'{self.customer.name} — {self.service.name} — {self.date} {self.start_time}'
+
+
+class Rating(models.Model):
+    """Valoración del cliente después de su cita."""
+
+    booking    = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name='rating')
+    tenant     = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='ratings')
+    score      = models.IntegerField()           # 1-5
+    comment    = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = 'Valoración'
+        verbose_name_plural = 'Valoraciones'
+        ordering            = ['-created_at']
+
+    def __str__(self):
+        return f'{self.booking.customer.name} → {self.tenant.name}: {self.score}★'
