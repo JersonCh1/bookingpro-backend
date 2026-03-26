@@ -41,6 +41,13 @@ def _location(tenant) -> str:
     return tenant.address.strip() if tenant.address and tenant.address.strip() else tenant.city
 
 
+def _maps_url(tenant) -> str:
+    """URL de Google Maps con la dirección del negocio."""
+    import urllib.parse
+    parts = [p for p in [tenant.address, tenant.city, 'Peru'] if p and p.strip()]
+    return 'https://maps.google.com/?q=' + urllib.parse.quote(' '.join(parts))
+
+
 # ── Mensajes de confirmación ──────────────────────────────
 
 def _msg_negocio_nueva_reserva(booking) -> str:
@@ -77,7 +84,8 @@ def _msg_cliente_confirmacion(booking) -> str:
         f'Fecha: {_fmt_date(b.date)}\n'
         f'Hora: {_fmt_time(b.start_time)}\n'
         f'Precio: S/. {b.service.price}\n\n'
-        f'Direccion: {_location(biz)}\n'
+        f'📍 Direccion: {_location(biz)}\n'
+        f'🗺 Ver en Maps: {_maps_url(biz)}\n'
         f'Telefono negocio: {biz.phone}'
         f'{cancel_line}'
     )
@@ -120,7 +128,8 @@ def _msg_cliente_recordatorio(booking) -> str:
         f'manana tienes cita en *{biz.name}*.\n\n'
         f'Servicio: {b.service.name}\n'
         f'Hora: {_fmt_time(b.start_time)}\n'
-        f'Direccion: {_location(biz)}\n\n'
+        f'📍 Direccion: {_location(biz)}\n'
+        f'🗺 Ver en Maps: {_maps_url(biz)}\n\n'
         f'Te esperamos!'
     )
 
@@ -184,6 +193,7 @@ def send_booking_reminder_with_token(booking) -> None:
         f'💈 {b.service.name}\n'
         f'🕐 {_fmt_time(b.start_time)}\n'
         f'📍 {_location(biz)}\n'
+        f'🗺 {_maps_url(biz)}\n'
     )
     if cancel_url:
         msg += f'\n¿No puedes venir? Cancela aquí:\n{cancel_url}'

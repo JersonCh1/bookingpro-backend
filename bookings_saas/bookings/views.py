@@ -298,9 +298,11 @@ def bookings_by_phone(request):
     for b in bookings:
         data.append({
             'id':            str(b.id),
-            'tenant_name':   b.tenant.name,
-            'tenant_slug':   b.tenant.slug,
-            'tenant_phone':  b.tenant.phone or '',
+            'tenant_name':    b.tenant.name,
+            'tenant_slug':    b.tenant.slug,
+            'tenant_phone':   b.tenant.phone   or '',
+            'tenant_address': b.tenant.address or '',
+            'tenant_city':    b.tenant.city    or '',
             'service_name':  b.service.name,
             'service_price': str(b.service.price),
             'date':          str(b.date),
@@ -384,6 +386,37 @@ def booking_by_cancel_token(request, token):
         'customer_name': booking.customer.name,
     }
     return success(data)
+
+
+# ── Cancelar por token (público — sin login) ──────────────
+
+@api_view(['PATCH'])
+@permission_classes([AllowAny])
+def cancel_by_token(request, token):
+    """
+    PATCH /api/bookings/cancel-token/{token}/cancel/
+    El token funciona como autenticación — no requiere teléfono.
+    """
+    booking = get_object_or_404(Booking, cancel_token=token)
+
+    if booking.status not in ('pending', 'confirmed'):
+        return error('Esta reserva no se puede cancelar.', code='INVALID_STATUS',
+                     status=drf_status.HTTP_400_BAD_REQUEST)
+
+    booking_dt = timezone.make_aware(
+        dt.combine(booking.date, booking.start_time)
+    )
+    if timezone.now() >= booking_dt - timedelta(hours=2):
+        return error('No puedes cancelar con menos de 2 horas de anticipación.',
+                     code='TOO_LATE', status=drf_status.HTTP_400_BAD_REQUEST)
+
+    booking.status = 'cancelled'
+    booking.save(update_fields=['status'])
+
+    from bookings_saas.notifications.services import send_booking_cancelled
+    _notify(send_booking_cancelled, booking)
+
+    return success({'message': 'Tu cita fue cancelada. El negocio fue notificado.'})
 
 
 # ── Analytics (dashboard) ─────────────────────────────────
