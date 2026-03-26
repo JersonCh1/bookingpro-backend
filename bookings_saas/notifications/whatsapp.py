@@ -3,24 +3,20 @@ notifications/whatsapp.py
 ─────────────────────────
 Integración con TextMeBot (WhatsApp gratuito).
 
-Cómo funciona TextMeBot:
-  1. El número remitente (+51996379418) debe estar configurado en TextMeBot.
-  2. Se obtiene un API key personal desde el panel de TextMeBot.
-  3. Ese API key se guarda en CALLMEBOT_API_KEY (variable reutilizada).
-
 Endpoint:
   GET https://api.textmebot.com/send.php?recipient=PHONE&apikey=APIKEY&text=TEXT
 
   - recipient: número con código de país (ej: +51987654321)
-  - apikey:    API key personal del remitente configurado en TextMeBot
-  - text:      mensaje (máx ~1000 chars)
+  - apikey:    API key del remitente configurado en TextMeBot
+  - text:      mensaje
 
-Recomendación TextMeBot:
-  - Esperar 5 segundos entre mensajes consecutivos para evitar bloqueos.
+Límite TextMeBot: 1 mensaje por cada 8 segundos (usamos 8s de margen).
 
 Notas de implementación:
   - Todas las llamadas HTTP se hacen en un thread daemon para no bloquear.
   - Los errores se loggean pero nunca rompen el flujo principal.
+  - Con múltiples workers (gunicorn) el lock es solo intra-proceso; el delay
+    de 8s tiene margen suficiente para absorber colisiones entre workers.
 """
 import logging
 import threading
@@ -32,23 +28,39 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 TEXTMEBOT_URL = 'https://api.textmebot.com/send.php'
+SEND_DELAY    = 8   # segundos entre envíos (TextMeBot limita a 1/5s, usamos 8 de margen)
+MAX_RETRIES   = 2   # reintentos adicionales en caso de 403
 
-_send_lock = threading.Lock()
+_send_lock     = threading.Lock()
 _last_send_time = 0.0
+
+
+def _normalize_phone(phone: str) -> str:
+    """
+    Limpia y normaliza el número de teléfono.
+    - Elimina espacios, guiones y paréntesis.
+    - Si empieza por 9 y tiene 9 dígitos → número peruano, agrega +51.
+    - Si no tiene '+' → agrega '+'.
+    """
+    phone = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+    if not phone.startswith('+'):
+        # Número peruano sin código de país: 9XXXXXXXX (9 dígitos que empiezan por 9)
+        if len(phone) == 9 and phone.startswith('9'):
+            phone = '+51' + phone
+        else:
+            phone = '+' + phone
+    return phone
 
 
 def _do_send(phone: str, message: str, apikey: str) -> bool:
     """
     Realiza la llamada HTTP a TextMeBot (bloqueante, llamar en thread).
     Retorna True si el mensaje fue aceptado (2xx), False si no.
-    Aplica un delay de 5 segundos entre envíos consecutivos.
+    Aplica delay de SEND_DELAY segundos entre envíos y reintenta en 403.
     """
     global _last_send_time
 
-    # Normalizar teléfono: quitar espacios y guiones, conservar '+'
-    phone = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
-    if not phone.startswith('+'):
-        phone = '+' + phone
+    phone = _normalize_phone(phone)
 
     params = {
         'recipient': phone,
@@ -56,26 +68,39 @@ def _do_send(phone: str, message: str, apikey: str) -> bool:
         'text':      message,
     }
 
-    # Delay de 5 segundos entre envíos para no ser bloqueado por TextMeBot
-    with _send_lock:
-        now = time.time()
-        elapsed = now - _last_send_time
-        if _last_send_time > 0 and elapsed < 5:
-            time.sleep(5 - elapsed)
+    for attempt in range(1 + MAX_RETRIES):
+        with _send_lock:
+            now = time.time()
+            elapsed = now - _last_send_time
+            if _last_send_time > 0 and elapsed < SEND_DELAY:
+                time.sleep(SEND_DELAY - elapsed)
 
-        try:
-            r = requests.get(TEXTMEBOT_URL, params=params, timeout=15)
-            _last_send_time = time.time()
-            if r.status_code == 200:
-                logger.info('WhatsApp enviado a %s', phone)
-                return True
-            else:
+            try:
+                r = requests.get(TEXTMEBOT_URL, params=params, timeout=15)
+                _last_send_time = time.time()
+
+                if r.status_code == 200:
+                    logger.info('WhatsApp enviado a %s', phone)
+                    return True
+
+                if r.status_code == 403 and attempt < MAX_RETRIES:
+                    logger.warning(
+                        'TextMeBot 403 (rate limit) para %s — reintentando en %ds (intento %d/%d)',
+                        phone, SEND_DELAY, attempt + 1, MAX_RETRIES,
+                    )
+                    # Forzar espera antes del reintento liberando el lock
+                    _last_send_time = time.time()
+                    continue  # el siguiente loop dormirá SEND_DELAY completo
+
                 logger.warning('TextMeBot respuesta %s para %s: %s', r.status_code, phone, r.text[:200])
                 return False
-        except requests.RequestException as exc:
-            _last_send_time = time.time()
-            logger.error('Error enviando WhatsApp a %s: %s', phone, exc)
-            return False
+
+            except requests.RequestException as exc:
+                _last_send_time = time.time()
+                logger.error('Error enviando WhatsApp a %s: %s', phone, exc)
+                return False
+
+    return False
 
 
 def send_whatsapp(phone: str, message: str, apikey: str = None) -> None:
@@ -84,7 +109,7 @@ def send_whatsapp(phone: str, message: str, apikey: str = None) -> None:
     Nunca bloquea ni lanza excepciones al llamador.
 
     Args:
-        phone:   Número del destinatario (con código de país).
+        phone:   Número del destinatario (con código de país o número peruano de 9 dígitos).
         message: Texto del mensaje.
         apikey:  API key de TextMeBot. Si no se pasa, usa CALLMEBOT_API_KEY del settings.
     """
@@ -96,41 +121,30 @@ def send_whatsapp(phone: str, message: str, apikey: str = None) -> None:
     t = threading.Thread(
         target=_do_send,
         args=(phone, message, key),
-        daemon=True,   # no bloquea el shutdown del proceso
+        daemon=True,
     )
     t.start()
 
 
 def send_test_message(phone: str, apikey: str = None) -> bool:
     """
-    Prueba la integración desde el shell de Django.
-    A diferencia de send_whatsapp(), esta función es SÍNCRONA
-    y retorna True/False para que puedas verificar el resultado.
+    Prueba la integración desde el shell de Django (SÍNCRONO).
 
-    Uso desde el shell:
+    Uso:
         python manage.py shell
         >>> from bookings_saas.notifications.whatsapp import send_test_message
-        >>> send_test_message('+51987654321')          # usa CALLMEBOT_API_KEY del settings
-        >>> send_test_message('+51987654321', 'abc123') # apikey explícito
-
-    Returns:
-        True  → mensaje enviado correctamente
-        False → fallo (ver logs para detalle)
+        >>> send_test_message('+51987654321')
     """
     key = apikey or getattr(settings, 'CALLMEBOT_API_KEY', '')
     if not key:
-        print('ERROR: CALLMEBOT_API_KEY no está configurado en settings ni se pasó como argumento.')
-        print('Agrega CALLMEBOT_API_KEY=<tu_apikey> en el archivo .env')
+        print('ERROR: CALLMEBOT_API_KEY no configurado. Agrega CALLMEBOT_API_KEY=<apikey> en .env')
         return False
 
     message = (
-        'BookingPro: Mensaje de prueba de integracion TextMeBot. '
+        'AgendaYa: Mensaje de prueba TextMeBot. '
         'Si recibes esto, la configuracion funciona correctamente.'
     )
     print(f'Enviando mensaje de prueba a {phone}...')
     result = _do_send(phone, message, key)
-    if result:
-        print('Mensaje enviado correctamente.')
-    else:
-        print('Fallo al enviar. Revisa los logs para más detalle.')
+    print('OK — mensaje enviado.' if result else 'ERROR — revisa los logs.')
     return result
