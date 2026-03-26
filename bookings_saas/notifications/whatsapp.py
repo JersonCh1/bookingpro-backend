@@ -1,28 +1,22 @@
 """
 notifications/whatsapp.py
 ─────────────────────────
-Integración con CallMeBot (WhatsApp gratuito).
+Integración con TextMeBot (WhatsApp gratuito).
 
-Cómo funciona CallMeBot:
-  1. El usuario (negocio o cliente) debe enviar "I allow callmebot to send me messages"
-     al número +34 644 64 70 17 (WhatsApp) UNA sola vez para activar su cuenta.
-  2. CallMeBot responde con un API key personal.
-  3. Ese API key se guarda en CALLMEBOT_API_KEY (para el negocio)
-     o se pasa directamente para envíos a clientes.
+Cómo funciona TextMeBot:
+  1. El número remitente (+51996379418) debe estar configurado en TextMeBot.
+  2. Se obtiene un API key personal desde el panel de TextMeBot.
+  3. Ese API key se guarda en CALLMEBOT_API_KEY (variable reutilizada).
 
 Endpoint:
-  GET https://api.callmebot.com/whatsapp.php?phone=PHONE&text=TEXT&apikey=APIKEY
+  GET https://api.textmebot.com/send.php?recipient=PHONE&apikey=APIKEY&text=TEXT
 
-  - phone: número con código de país, con o sin '+' (ej: +51987654321 o 51987654321)
-  - text:  mensaje URL-encoded (máx ~1000 chars)
-  - apikey: el API key personal del DESTINATARIO
+  - recipient: número con código de país (ej: +51987654321)
+  - apikey:    API key personal del remitente configurado en TextMeBot
+  - text:      mensaje (máx ~1000 chars)
 
-Limitaciones gratuitas:
-  - Solo funciona si el DESTINATARIO activó su cuenta con CallMeBot.
-  - No es ideal para clientes finales que no han activado CallMeBot,
-    pero funciona perfectamente para notificar AL NEGOCIO.
-  - Para el cliente final se puede usar el mismo API key del negocio
-    como relay, aunque el mensaje llegará desde la cuenta del negocio.
+Recomendación TextMeBot:
+  - Esperar 5 segundos entre mensajes consecutivos para evitar bloqueos.
 
 Notas de implementación:
   - Todas las llamadas HTTP se hacen en un thread daemon para no bloquear.
@@ -30,43 +24,58 @@ Notas de implementación:
 """
 import logging
 import threading
-import urllib.parse
+import time
 
 import requests
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-CALLMEBOT_URL = 'https://api.callmebot.com/whatsapp.php'
+TEXTMEBOT_URL = 'https://api.textmebot.com/send.php'
+
+_send_lock = threading.Lock()
+_last_send_time = 0.0
 
 
 def _do_send(phone: str, message: str, apikey: str) -> bool:
     """
-    Realiza la llamada HTTP a CallMeBot (bloqueante, llamar en thread).
+    Realiza la llamada HTTP a TextMeBot (bloqueante, llamar en thread).
     Retorna True si el mensaje fue aceptado (2xx), False si no.
+    Aplica un delay de 5 segundos entre envíos consecutivos.
     """
+    global _last_send_time
+
     # Normalizar teléfono: quitar espacios y guiones, conservar '+'
     phone = phone.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
     if not phone.startswith('+'):
         phone = '+' + phone
 
     params = {
-        'phone':  phone,
-        'text':   message,
-        'apikey': apikey,
+        'recipient': phone,
+        'apikey':    apikey,
+        'text':      message,
     }
 
-    try:
-        r = requests.get(CALLMEBOT_URL, params=params, timeout=15)
-        if r.status_code == 200:
-            logger.info('WhatsApp enviado a %s', phone)
-            return True
-        else:
-            logger.warning('CallMeBot respuesta %s para %s: %s', r.status_code, phone, r.text[:200])
+    # Delay de 5 segundos entre envíos para no ser bloqueado por TextMeBot
+    with _send_lock:
+        now = time.time()
+        elapsed = now - _last_send_time
+        if _last_send_time > 0 and elapsed < 5:
+            time.sleep(5 - elapsed)
+
+        try:
+            r = requests.get(TEXTMEBOT_URL, params=params, timeout=15)
+            _last_send_time = time.time()
+            if r.status_code == 200:
+                logger.info('WhatsApp enviado a %s', phone)
+                return True
+            else:
+                logger.warning('TextMeBot respuesta %s para %s: %s', r.status_code, phone, r.text[:200])
+                return False
+        except requests.RequestException as exc:
+            _last_send_time = time.time()
+            logger.error('Error enviando WhatsApp a %s: %s', phone, exc)
             return False
-    except requests.RequestException as exc:
-        logger.error('Error enviando WhatsApp a %s: %s', phone, exc)
-        return False
 
 
 def send_whatsapp(phone: str, message: str, apikey: str = None) -> None:
@@ -77,7 +86,7 @@ def send_whatsapp(phone: str, message: str, apikey: str = None) -> None:
     Args:
         phone:   Número del destinatario (con código de país).
         message: Texto del mensaje.
-        apikey:  API key de CallMeBot. Si no se pasa, usa CALLMEBOT_API_KEY del settings.
+        apikey:  API key de TextMeBot. Si no se pasa, usa CALLMEBOT_API_KEY del settings.
     """
     key = apikey or getattr(settings, 'CALLMEBOT_API_KEY', '')
     if not key:
@@ -115,7 +124,7 @@ def send_test_message(phone: str, apikey: str = None) -> bool:
         return False
 
     message = (
-        'BookingPro: Mensaje de prueba de integracion CallMeBot. '
+        'BookingPro: Mensaje de prueba de integracion TextMeBot. '
         'Si recibes esto, la configuracion funciona correctamente.'
     )
     print(f'Enviando mensaje de prueba a {phone}...')
